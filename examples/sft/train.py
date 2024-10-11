@@ -3,7 +3,8 @@ import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-from transformers import HfArgumentParser, TrainingArguments, set_seed
+import mlflow
+from transformers import HfArgumentParser, TrainingArguments, set_seed, AutoTokenizer
 from trl import SFTTrainer
 from utils import create_and_prepare_model, create_datasets
 
@@ -140,6 +141,12 @@ def main(model_args, data_args, training_args):
     if hasattr(trainer.model, "print_trainable_parameters"):
         trainer.model.print_trainable_parameters()
 
+    mlflow_callback = None
+    
+    for callback in trainer.callback_handler.callbacks:
+        mlflow_callbacks = callback
+        break
+
     # train
     checkpoint = None
     if training_args.resume_from_checkpoint is not None:
@@ -150,6 +157,17 @@ def main(model_args, data_args, training_args):
     if trainer.is_fsdp_enabled:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
     trainer.save_model()
+    
+    last_run_id = mlflow_callback._run_id
+    
+    tokenizer_no_pad = AutoTokenizer.from_pretrained(model_args.model_name_or_path, add_bos_token=True)
+    
+    with mlflow.start_run(run_id=last_run_id)
+        mlflow.transformers.log_model(
+            transformers_model={"model": trainer.model, "tokenizer": tokenizer_no_pad},
+            artifact_path="model",
+            task="text-generation",
+        )
 
 
 if __name__ == "__main__":
