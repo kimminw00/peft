@@ -162,12 +162,13 @@ def main(model_args, data_args, training_args):
     
     tokenizer_no_pad = AutoTokenizer.from_pretrained(model_args.model_name_or_path, add_bos_token=True)
     
-    with mlflow.start_run(run_id=last_run_id)
-        mlflow.transformers.log_model(
-            transformers_model={"model": trainer.model, "tokenizer": tokenizer_no_pad},
-            artifact_path="model",
-            task="text-generation",
-        )
+    if torch.distributed.get_rank() == 0:
+        with mlflow.start_run(run_id=last_run_id)
+            mlflow.transformers.log_model(
+                transformers_model={"model": trainer.model, "tokenizer": tokenizer_no_pad},
+                artifact_path="model",
+                task="text-generation",
+            )
 
 
 if __name__ == "__main__":
